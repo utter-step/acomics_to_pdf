@@ -1,4 +1,5 @@
 # coding: utf-8
+import argparse
 import sys
 import tempfile
 
@@ -27,12 +28,12 @@ def get_page_count(comic_name):
     return int(last_page_href.split('/')[-1])
 
 
-def get_img_urls(comic_name):
+def get_img_urls(comic_name, start=None, end=None):
     IMG_XPATH = '//img[@id=\'mainImage\']'
 
     pages_count = get_page_count(comic_name)
 
-    for i in xrange(1, pages_count + 1):
+    for i in xrange(start or 1, end or (pages_count + 1)):
         url = PAGE_URL_TEMPLATE.format(
             host=HOST,
             comic=comic_name,
@@ -62,13 +63,15 @@ def add_header(pdf, title):
     pdf.cell(w, txt=title)
 
 
-def create_pdf(comic_name):
+def create_pdf(comic_name, start=None, end=None):
     pdf = fpdf.FPDF()
     pdf.add_page()
 
     add_header(pdf, comic_name)
 
-    for i, url in enumerate(get_img_urls(comic_name)):
+    pdf.set_x(0)
+
+    for i, url in enumerate(get_img_urls(comic_name, start, end), start):
         extension = '.' + url.split('.')[-1]
         file = requests.get(url).content
 
@@ -76,19 +79,27 @@ def create_pdf(comic_name):
             temp.write(file)
 
             try:
-                pdf.image(temp.name, w=pdf.w - 20)
+                pdf.image(temp.name, w=pdf.w, h=pdf.h)
             except:
-                print i + 1, url
+                print(i + 1, url)
                 break
 
         sys.stdout.write('{0}\r'.format(i + 1))
         sys.stdout.flush()
 
-    pdf.output(comic_name + '.pdf', 'F')
+    pdf.output('{0}_{1}_{2}.pdf'.format(comic_name, start or 1, end or i), 'F')
 
 if __name__ == '__main__':
+    start = None
+    end = None
+
     if len(sys.argv) < 2:
-        print 'Usage: acomics_to_pdf.py <comics_slug>'
+        print('Usage: acomics_to_pdf.py <comics_slug>')
         sys.exit()
 
-    create_pdf(sys.argv[1])
+    if len(sys.argv) == 3:
+        end = int(sys.argv[2])
+    elif len(sys.argv) == 4:
+        start, end = map(int, sys.argv[2:4])
+
+    create_pdf(sys.argv[1], start, end)
